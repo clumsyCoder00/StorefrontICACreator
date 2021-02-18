@@ -1,20 +1,20 @@
 <#PSScriptInfo
 
-.VERSION 1.0
+.VERSION
 
-.GUID a827a25d-8def-496f-9474-53fdfdbc2450
+.GUID
 
-.AUTHOR @ryan_c_butler
+.AUTHOR @
 
-.COMPANYNAME Techdrabble.com
+.COMPANYNAME 
 
-.COPYRIGHT 2017
+.COPYRIGHT 
 
 .TAGS Storefront ICA PublishedApps Citrix
 
-.LICENSEURI https://github.com/ryancbutler/StorefrontICACreator/blob/master/License.txt
+.LICENSEURI
 
-.PROJECTURI https://github.com/ryancbutler/StorefrontICACreator
+.PROJECTURI
 
 .ICONURI 
 
@@ -29,9 +29,6 @@
 08-27-17: Formatting for PS Gallery
 
 #> 
-
-
-
 
 <#
 .SYNOPSIS
@@ -51,7 +48,7 @@
 .PARAMETER domain
    domain to use (MANDATORY)
 .EXAMPLE
-  .\get-ICAfile_v3_auth.ps1 -sfurl "https://storefront.mydomain.local/Citrix/StoreWeb/" -icapath "C:\temp\myica.ica" -username "jsmith" -password "mypassword" -domain "mydomain.local" -appname "Notepad++"
+  .\get-ICAfile_v3_auth.ps1 -sfurl "https://storefront.mydomain.local/Citrix/StoreWeb/" -icapath 'C:\temp\myica.ica' -username 'jsmith' -password 'mypassword' -domain 'mydomain.local' -appname 'Notepad++'
 #>
 Param
 (
@@ -73,34 +70,35 @@ if (test-path $icapath)
     Remove-Item $icapath -Force
 }
 
-
 #start by loading main SF page
 $headers = @{
 "Accept"='text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8';
 "Upgrade-Insecure-Requests"="1";
 }
 
-Invoke-WebRequest -Uri ($sfurl) -Method GET -Headers $headers -SessionVariable SFSession|Out-Null
+$login = Invoke-WebRequest -Uri ($sfurl) -Method GET -Headers $headers -SessionVariable SFSession
 
 #Gets required tokens
 $headers = @{
 "Accept"='application/xml, text/xml, */*; q=0.01';
 "Content-Length"="0";
 "X-Requested-With"="XMLHttpRequest";
-"X-Citrix-IsUsingHTTPS"="Yes";
+"X-Citrix-IsUsingHTTPS"="No";
 "Referer"=$sfurl;
 }
 
-Invoke-WebRequest -Uri ($sfurl + "Home/Configuration") -Method POST -Headers $headers -WebSession $sfsession|Out-Null
+Invoke-WebRequest -Uri ($sfurl + "Home/Configuration") -Method POST -Headers $headers -WebSession $SFSession|Out-Null
 
 $csrf = $sfsession.cookies.GetCookies($sfurl)|where{$_.name -like "CsrfToken"}
+$asp_net_sessionid = $sfsession.cookies.GetCookies($sfurl)|where{$_.name -like "ASP.NET_SessionId"}
+
 $cookiedomain = $csrf.Domain
 
 #Gets needed cookie values
 $headers = @{
 "Content-Type"='application/x-www-form-urlencoded; charset=UTF-8';
 "Accept"='application/json, text/javascript, */*; q=0.01';
-"X-Citrix-IsUsingHTTPS"= "Yes";
+"X-Citrix-IsUsingHTTPS"= "No";
 "Csrf-Token"=$csrf.value;
 "Referer"=$sfurl;
 "format"='json&resourceDetails=Default';
@@ -111,53 +109,30 @@ Invoke-WebRequest -Uri ($sfurl + "Resources/List") -Method POST -Headers $header
 $headers = @{
 "Accept"='application/xml, text/xml, */*; q=0.01';
 "Content-Length"="0";
-"X-Citrix-IsUsingHTTPS"="Yes";
+"X-Citrix-IsUsingHTTPS"="No";
 "Referer"=$sfurl;
 "Csrf-Token"=$csrf.value;
 }
 
-Invoke-WebRequest -Uri ($sfurl + "Authentication/GetAuthMethods") -Method POST -Headers $headers -WebSession $sfsession|Out-Null
+Invoke-WebRequest -Uri ($sfurl + "Authentication/GetAuthMethods") -Method POST -Headers $headers -WebSession $SFSession|Out-Null
 
 #Start Login Process
 $headers = @{
 "Accept"="application/xml, text/xml, */*; q=0.01";
 "Csrf-Token"=$csrf.Value;
-"X-Citrix-IsUsingHTTPS"="Yes";
+"X-Citrix-IsUsingHTTPS"="No";
 "Content-Length"="0";
 }
-
-#Add cookies that would normally prompt
-$cookie = New-Object System.Net.Cookie
-$cookie.Name = "CtxsUserPreferredClient"
-$cookie.Value = "Native"
-$cookie.Domain = $cookiedomain
-$sfsession.Cookies.Add($cookie)
-
-$cookie = New-Object System.Net.Cookie
-$cookie.Name = "CtxsClientDetectionDon"
-$cookie.Value = "true"
-$cookie.Domain = $cookiedomain
-$sfsession.Cookies.Add($cookie)
-
-$cookie = New-Object System.Net.Cookie
-$cookie.Name = "CtxsHasUpgradeBeenShown"
-$cookie.Value = "true"
-$cookie.Domain = $cookiedomain
-$sfsession.Cookies.Add($cookie)
-
 
 Invoke-WebRequest -Uri ($sfurl + "ExplicitAuth/Login") -Method POST -Headers $headers -WebSession $SFSession|Out-Null
 
 #Explicit Authentication
 $headers = @{
-"Accept"="application/xml, text/xml, */*; q=0.01";
-"Accept-Encoding"="gzip, deflate, br";
-"Accept-Language"="en-US,en;q=0.8";
-"X-Requested-With"="XMLHttpRequest";
+"Csrf-Token"=$csrf.Value;
+"X-Citrix-IsUsingHTTPS"="No";
 }
 
 $body = @{
-"domain"=$domain;
 "loginBtn"="Log On";
 "password"=$password;
 "saveCredentials"="false";
@@ -165,16 +140,15 @@ $body = @{
 "StateContext"="";
 }
 
-
-$login = Invoke-WebRequest -Uri ($sfurl + "ExplicitAuth/LoginAttempt") -Method POST -Headers $headers -Body $body -WebSession $SFSession
+Invoke-WebRequest -Uri ($sfurl + "ExplicitAuth/LoginAttempt") -Method POST -Headers $headers -Body $body -WebSession $SFSession|Out-Null
 
 #Gets resources and required ICA URL
 $headers = @{
 "Content-Type"='application/x-www-form-urlencoded; charset=UTF-8';
 "Accept"='application/json, text/javascript, */*; q=0.01';
-"X-Citrix-IsUsingHTTPS"= "Yes";
 "Csrf-Token"=$csrf.value;
 "Referer"=$sfurl;
+"X-Citrix-IsUsingHTTPS"= "No";
 "X-Requested-With"="XMLHttpRequest";
 }
 
@@ -185,9 +159,9 @@ $body = @{
 
 $content = Invoke-WebRequest -Uri ($sfurl + "Resources/List") -Method POST -Headers $headers -body $body -WebSession $SFSession
 
-
 #Creates ICA file
 $resources = $content.content | convertfrom-json
+
 $resourceurl = $resources.resources|where{$_.name -like $appname}
 
 if ($resourceurl.count)
@@ -197,7 +171,7 @@ if ($resourceurl.count)
 }
 else
 {  
-Invoke-WebRequest -Uri ($sfurl + $resourceurl.launchurl + '?CsrfToken=' + $csrf.value + "&IsUsingHttps=Yes") -Method GET -WebSession $SFSession -OutFile $icapath|Out-Null
+Invoke-WebRequest -Uri ($sfurl + $resourceurl.launchurl + '?CsrfToken=' + $csrf.value + "&IsUsingHttps=No") -Method GET -WebSession $SFSession -OutFile $icapath|Out-Null
     if (test-path $icapath)
     {
         write-host "Launching created ICA..."
@@ -208,4 +182,3 @@ Invoke-WebRequest -Uri ($sfurl + $resourceurl.launchurl + '?CsrfToken=' + $csrf.
         write-host "ICA not found check configuration"
     }
 }
-
